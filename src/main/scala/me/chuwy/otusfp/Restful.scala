@@ -13,12 +13,6 @@ object Restful {
 
   case class Environment(config: String, threadPool: Int)
 
-  private val counterRef: IO[Ref[IO, Int]] = Ref[IO].of(0)
-
-  def newCounter(): IO[Int] = {
-    counterRef.flatMap(r => r.updateAndGet(_+1))
-  }
-
   type MyApp[A] = ReaderT[IO, Environment, A]
 
   val ourFirstReader: MyApp[String] =
@@ -33,7 +27,7 @@ object Restful {
 
   def getFromDb: IO[String] = IO.pure("Ok")
 
-  val route = HttpRoutes.of[IO] {
+  def route(cref: Ref[IO, Int]) = HttpRoutes.of[IO] {
     case GET -> Root / "api" / name =>
       getFromDb.flatMap { _ =>
         Ok(s"Hello, $name")
@@ -42,12 +36,15 @@ object Restful {
       Forbidden("you have no access")
 
     case GET -> Root / "counter" =>
-      newCounter().flatMap(v => Ok(s"$v"))
+    for {
+      v <- cref.updateAndGet(_ + 1)
+      result <- Ok(s"$v")
+    } yield(result)
 
    }
 
-  val server = BlazeServerBuilder[IO]
+  def server(cref: Ref[IO, Int]) = BlazeServerBuilder[IO]
     .bindHttp(port = 8080, host = "localhost")
-    .withHttpApp(route.orNotFound)
+    .withHttpApp(route(cref).orNotFound)
     .resource
 }
