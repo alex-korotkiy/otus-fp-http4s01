@@ -9,6 +9,8 @@ import org.http4s.dsl.io._
 import org.http4s.HttpRoutes
 import org.http4s.blaze.server.BlazeServerBuilder
 
+import scala.util._
+
 object Restful {
 
   case class Environment(config: String, threadPool: Int)
@@ -27,6 +29,20 @@ object Restful {
 
   def getFromDb: IO[String] = IO.pure("Ok")
 
+  def slowParamsConverter(strTotal: String, strRate: String): Try[(Int, Double)] = {
+    val preResult = Try(strTotal.toInt, strRate.toDouble)
+    preResult match {
+      case Failure(exception) =>
+        preResult
+      case Success((total, rate)) =>
+        if(total <= 0)
+          Failure(new Exception("Total should be positive"))
+        if (rate <=0)
+          Failure(new Exception("Rate should be positive"))
+        preResult
+    }
+  }
+
   def route(cref: Ref[IO, Int]) = HttpRoutes.of[IO] {
     case GET -> Root / "api" / name =>
       getFromDb.flatMap { _ =>
@@ -41,6 +57,15 @@ object Restful {
       result <- Ok(s"$v")
     } yield(result)
 
+    case GET -> Root / "slow" / total / rate => {
+      val data = slowParamsConverter(total, rate)
+      data match {
+        case Failure(exception) =>
+          UnprocessableEntity(exception.toString)
+        case Success((nTotal, nRate)) =>
+          Ok("*".repeat(nTotal))
+      }
+    }
    }
 
   def server(cref: Ref[IO, Int]) = BlazeServerBuilder[IO]
