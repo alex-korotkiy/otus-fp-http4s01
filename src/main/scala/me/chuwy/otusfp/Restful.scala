@@ -8,7 +8,8 @@ import org.http4s.implicits._
 import org.http4s.dsl.io._
 import org.http4s.HttpRoutes
 import org.http4s.blaze.server.BlazeServerBuilder
-
+import scala.concurrent.duration._
+import fs2.Stream
 import scala.util._
 
 object Restful {
@@ -32,14 +33,16 @@ object Restful {
   def slowParamsConverter(strTotal: String, strRate: String): Try[(Int, Double)] = {
     val preResult = Try(strTotal.toInt, strRate.toDouble)
     preResult match {
-      case Failure(exception) =>
+      case Failure(_) =>
         preResult
       case Success((total, rate)) =>
-        if(total <= 0)
-          Failure(new Exception("Total should be positive"))
-        if (rate <=0)
-          Failure(new Exception("Rate should be positive"))
-        preResult
+        val m1 = if (total > 0) "" else "Total should be positive"
+        val m2 = if (rate > 0) "" else "Rate should be positive"
+        val errorMsg = List(m1, m2).filter(_ != "").mkString("\r\n")
+        if(errorMsg=="")
+          preResult
+        else
+          Failure(new Exception(errorMsg))
     }
   }
 
@@ -63,7 +66,8 @@ object Restful {
         case Failure(exception) =>
           UnprocessableEntity(exception.toString)
         case Success((nTotal, nRate)) =>
-          Ok("*".repeat(nTotal))
+          val slowStream = Stream.awakeEvery[IO]((1/nRate).second) zipRight Stream("*").repeat.take(nTotal)
+          Ok(slowStream)
       }
     }
    }
