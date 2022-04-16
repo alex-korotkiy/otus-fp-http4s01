@@ -2,8 +2,6 @@ package me.chuwy.otusfp
 
 import cats.effect.{IO, Ref}
 import cats.data.ReaderT
-import cats.effect.unsafe.implicits.global
-import org.http4s._
 import org.http4s.implicits._
 import org.http4s.dsl.io._
 import org.http4s.HttpRoutes
@@ -11,18 +9,12 @@ import org.http4s.blaze.server.BlazeServerBuilder
 
 import scala.concurrent.duration._
 import fs2.Stream
+
 import scala.util._
 
 object PositiveIntVar {
   def unapply (str: String): Option[Int] =
     Try(str.toInt).flatMap(v => Try(
-      if (v > 0) v else throw new Exception("Parameter should be positive!")
-    )).toOption
-}
-
-object PositiveDoubleVar {
-  def unapply (str: String): Option[Double] =
-    Try(str.toDouble).flatMap(v => Try(
       if (v > 0) v else throw new Exception("Parameter should be positive!")
     )).toOption
 }
@@ -59,10 +51,11 @@ object Restful {
       result <- Ok(s"$v")
     } yield(result)
 
-    case GET -> Root / "slow" / PositiveIntVar(total) / PositiveDoubleVar(rate) =>
-          val slowStream = Stream.awakeEvery[IO]((1/rate).second) zipRight Stream("*").repeat.take(total)
-          Ok(slowStream)
-
+    case GET -> Root / "slow" / PositiveIntVar(chunk) / PositiveIntVar(total) / PositiveIntVar(time) =>
+      val oneTimeString = "*".repeat(chunk)
+      val slowStream = Stream.awakeEvery[IO](time.second) zipRight Stream(oneTimeString).repeat
+      val limitedStream = slowStream.flatMap(x => Stream(x: _*)).take(total).map(_.toString)
+      Ok(limitedStream)
    }
 
   def server(cref: Ref[IO, Int]) = BlazeServerBuilder[IO]
