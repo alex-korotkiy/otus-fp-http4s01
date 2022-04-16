@@ -13,7 +13,7 @@ import org.http4s.implicits.http4sLiteralsSyntax
 class SlowStreamSpec extends Specification {
 
   "Slow stream" should {
-    "return exact number of chars" in {
+    "return exact number of chars and be slow" in {
 
       val slowRequest = Request[IO](GET, uri"/slow/10/25/1")
 
