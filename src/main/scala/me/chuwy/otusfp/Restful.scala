@@ -8,9 +8,24 @@ import org.http4s.implicits._
 import org.http4s.dsl.io._
 import org.http4s.HttpRoutes
 import org.http4s.blaze.server.BlazeServerBuilder
+
 import scala.concurrent.duration._
 import fs2.Stream
 import scala.util._
+
+object PositiveIntVar {
+  def unapply (str: String): Option[Int] =
+    Try(str.toInt).flatMap(v => Try(
+      if (v > 0) v else throw new Exception("Parameter should be positive!")
+    )).toOption
+}
+
+object PositiveDoubleVar {
+  def unapply (str: String): Option[Double] =
+    Try(str.toDouble).flatMap(v => Try(
+      if (v > 0) v else throw new Exception("Parameter should be positive!")
+    )).toOption
+}
 
 object Restful {
 
@@ -30,22 +45,6 @@ object Restful {
 
   def getFromDb: IO[String] = IO.pure("Ok")
 
-  def slowParamsConverter(strTotal: String, strRate: String): Try[(Int, Double)] = {
-    val preResult = Try(strTotal.toInt, strRate.toDouble)
-    preResult match {
-      case Failure(_) =>
-        preResult
-      case Success((total, rate)) =>
-        val m1 = if (total > 0) "" else "Total should be positive"
-        val m2 = if (rate > 0) "" else "Rate should be positive"
-        val errorMsg = List(m1, m2).filter(_ != "").mkString("\r\n")
-        if(errorMsg=="")
-          preResult
-        else
-          Failure(new Exception(errorMsg))
-    }
-  }
-
   def route(cref: Ref[IO, Int]) = HttpRoutes.of[IO] {
     case GET -> Root / "api" / name =>
       getFromDb.flatMap { _ =>
@@ -60,16 +59,10 @@ object Restful {
       result <- Ok(s"$v")
     } yield(result)
 
-    case GET -> Root / "slow" / total / rate => {
-      val data = slowParamsConverter(total, rate)
-      data match {
-        case Failure(exception) =>
-          UnprocessableEntity(exception.toString)
-        case Success((nTotal, nRate)) =>
-          val slowStream = Stream.awakeEvery[IO]((1/nRate).second) zipRight Stream("*").repeat.take(nTotal)
+    case GET -> Root / "slow" / PositiveIntVar(total) / PositiveDoubleVar(rate) =>
+          val slowStream = Stream.awakeEvery[IO]((1/rate).second) zipRight Stream("*").repeat.take(total)
           Ok(slowStream)
-      }
-    }
+
    }
 
   def server(cref: Ref[IO, Int]) = BlazeServerBuilder[IO]
