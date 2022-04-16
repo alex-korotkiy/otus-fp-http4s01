@@ -11,6 +11,9 @@ import scala.concurrent.duration._
 import fs2.Stream
 
 import scala.util._
+import io.circe.syntax._
+import io.circe.generic.auto._
+
 
 object PositiveIntVar {
   def unapply (str: String): Option[Int] =
@@ -18,6 +21,8 @@ object PositiveIntVar {
       if (v > 0) v else throw new Exception("Parameter should be positive!")
     )).toOption
 }
+
+case class Counter(counter: Int)
 
 object Restful {
 
@@ -48,7 +53,7 @@ object Restful {
     case GET -> Root / "counter" =>
     for {
       v <- cref.updateAndGet(_ + 1)
-      result <- Ok(s"$v")
+      result <- Ok(Counter(v).asJson.toString)
     } yield(result)
 
     case GET -> Root / "slow" / PositiveIntVar(chunk) / PositiveIntVar(total) / PositiveIntVar(time) =>
