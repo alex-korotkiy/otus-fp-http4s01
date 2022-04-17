@@ -17,18 +17,24 @@ class SlowStreamSpec extends Specification {
 
       val slowRequest = Request[IO](GET, uri"/slow/10/25/1")
 
-      val ref = Ref[IO].of(0).unsafeRunSync()
-      val route = Restful.route(ref)
+      val slowResponseDataIO = for {
+        ref <- Ref[IO].of(0)
+        route = Restful.route(ref)
 
-      val startTime = java.time.Instant.now()
+        startTime = java.time.Instant.now()
 
-      val slowResponse = route(slowRequest).value.unsafeRunSync().get
-      val slowResponseString = slowResponse.body.through(text.utf8.decode).compile.string.unsafeRunSync()
+        slowResponse <- route(slowRequest).value
+        slowResponseString <- slowResponse.get.body.through(text.utf8.decode).compile.string
 
-      val stopTime = java.time.Instant.now()
+        stopTime = java.time.Instant.now()
+        timeDiff = stopTime.toEpochMilli - startTime.toEpochMilli
 
-      slowResponseString mustEqual "*".repeat(25)
-      startTime.plusSeconds(3) must be_<=(stopTime)
+      } yield (slowResponseString, timeDiff)
+
+      val slowResponseData = slowResponseDataIO.unsafeRunSync()
+
+      slowResponseData._1 mustEqual "*".repeat(25)
+      slowResponseData._2.toInt must be_>=(3000)
 
     }
   }

@@ -19,19 +19,23 @@ class CounterSpec extends Specification {
 
       val getCounter = Request[IO](GET, uri"/counter")
 
-      val ref = Ref[IO].of(0).unsafeRunSync()
-      val route = Restful.route(ref)
+      val countersIO = for {
+        ref <- Ref[IO].of(0)
+        route = Restful.route(ref)
 
-      val counter1Response = route(getCounter).value.unsafeRunSync().get
-      val counter1String = counter1Response.body.through(text.utf8.decode).compile.string.unsafeRunSync()
-      val counter1 = decode[Counter](counter1String)
+        counter1Response <- route(getCounter).value
+        counter1String <- counter1Response.get.body.through(text.utf8.decode).compile.string
+        counter1 = decode[Counter](counter1String)
 
-      val counter2Response = route(getCounter).value.unsafeRunSync().get
-      val counter2String = counter2Response.body.through(text.utf8.decode).compile.string.unsafeRunSync()
-      val counter2 = decode[Counter](counter2String)
+        counter2Response <- route(getCounter).value
+        counter2String <- counter2Response.get.body.through(text.utf8.decode).compile.string
+        counter2 = decode[Counter](counter2String)
 
-      counter1 mustEqual Right(Counter(1))
-      counter2 mustEqual Right(Counter(2))
+      } yield (counter1, counter2)
+
+      val counters = countersIO.unsafeRunSync()
+      counters._1 mustEqual Right(Counter(1))
+      counters._2 mustEqual Right(Counter(2))
 
     }
   }
